@@ -1,19 +1,19 @@
 use std::collections::HashMap;
-use std::io::{BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::net::{TcpListener, TcpStream};
 
 #[derive(Clone, Copy)]
 enum HTTPResponse {
     Ok = 200,
+    NotFound = 404,
     ServerError = 500,
-    NotFound = 400,
 }
 impl HTTPResponse {
     fn status_code(&self) -> &'static str {
         match self {
             Self::Ok => "OK",
-            Self::ServerError => "SERVER ERROR",
             Self::NotFound => "NOT FOUND",
+            Self::ServerError => "SERVER ERROR",
         }
     }
 }
@@ -21,7 +21,7 @@ impl HTTPResponse {
 struct HTTPResponseBuilder<'a> {
     headers: HashMap<&'a str, &'a str>,
     response: HTTPResponse,
-    payload: &'a [u8],
+    payload: Vec<u8>,
 }
 
 impl<'a> HTTPResponseBuilder<'a> {
@@ -29,7 +29,7 @@ impl<'a> HTTPResponseBuilder<'a> {
         Self {
             headers: HashMap::new(),
             response: HTTPResponse::Ok,
-            payload: &[],
+            payload: vec![],
         }
     }
     fn build(self) -> Vec<u8> {
@@ -56,9 +56,41 @@ impl<'a> HTTPResponseBuilder<'a> {
 }
 
 fn handle_connection(mut stream: TcpStream) {
+    let mut reader = BufReader::new(&mut stream);
+    let mut buffer = String::new();
+    reader.read_line(&mut buffer).unwrap();
+    let path = &buffer
+        .split_whitespace()
+        .nth(1)
+        .expect("Failed to get the Requested file name from client")[1..];
+    let path = std::path::Path::new(if path.is_empty() { "index.html" } else { path });
+    let extension = &path
+        .extension()
+        .map(|x| x.to_str().unwrap())
+        .unwrap_or("html");
+    let content_type = |extension: &str| match extension {
+        "html" => "text/html",
+        "png" => "image/png",
+        "json" => "text/json",
+        "jpeg" | "jpg" => "image/jpeg",
+        _ => "text/plain",
+    };
+
     let mut http_builder = HTTPResponseBuilder::new();
-    http_builder.headers.insert("content-type", "text/html");
-    http_builder.payload = "<h1>Hello World!</h1>".as_bytes();
+    match std::fs::read(path) {
+        Ok(data) => {
+            http_builder.payload = data;
+            http_builder
+                .headers
+                .insert("content-type", content_type(extension));
+        }
+        Err(e) => {
+            http_builder.response = match e.kind() {
+                std::io::ErrorKind::NotFound => HTTPResponse::NotFound,
+                _ => HTTPResponse::ServerError,
+            }
+        }
+    }
     let mut writer = BufWriter::new(&mut stream);
     writer.write_all(&http_builder.build()).unwrap();
     writer.flush().unwrap();
