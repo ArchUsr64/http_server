@@ -97,7 +97,7 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn main() {
-    let listener = TcpListener::bind("[::]:8080").unwrap();
+    let listener = TcpListener::bind("[::]:80").unwrap();
     for stream in listener.incoming() {
         println!("Incoming connection from: {stream:?}");
         std::thread::spawn(move || handle_connection(stream.unwrap()));
