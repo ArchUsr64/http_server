@@ -102,5 +102,4 @@ fn main() {
         println!("Incoming connection from: {stream:?}");
         std::thread::spawn(move || handle_connection(stream.unwrap()));
     }
-    println!("Hello, world!");
 }
