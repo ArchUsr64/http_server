@@ -1,6 +1,15 @@
+use clap::Parser;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::net::{TcpListener, TcpStream};
+
+/// Simple HTTP server
+#[derive(Parser)]
+struct Args {
+    /// Port number
+    #[arg(short, long, default_value_t = 8080)]
+    port_number: u16,
+}
 
 #[derive(Clone, Copy)]
 enum HTTPResponse {
@@ -97,7 +106,10 @@ fn handle_connection(mut stream: TcpStream) {
 }
 
 fn main() {
-    let listener = TcpListener::bind("[::]:80").unwrap();
+    let args = Args::parse();
+    let socket_address = format!("[::]:{}", args.port_number);
+    println!("Server started at {socket_address}");
+    let listener = TcpListener::bind(socket_address).unwrap();
     for stream in listener.incoming() {
         println!("Incoming connection from: {stream:?}");
         std::thread::spawn(move || handle_connection(stream.unwrap()));
