@@ -78,6 +78,7 @@ fn handle_connection(mut stream: TcpStream) {
         .map(|x| x.to_str().unwrap())
         .unwrap_or("html");
     let content_type = |extension: &str| match extension {
+        "wasm" => "application/wasm",
         "html" => "text/html",
         "png" => "image/png",
         "json" => "text/json",
