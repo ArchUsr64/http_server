@@ -9,6 +9,9 @@ struct Args {
     /// Port number
     #[arg(short, long, default_value_t = 8080)]
     port_number: u16,
+    /// Server root path
+    #[arg(short, long, default_value_t = String::from("."))]
+    server_path: String,
 }
 
 #[derive(Clone, Copy)]
@@ -58,13 +61,13 @@ impl<'a> HTTPResponseBuilder<'a> {
                 .iter()
                 .for_each(|byte| result.push(*byte));
         }
-        result.push('\n' as u8);
+        result.push(b'\n');
         self.payload.iter().for_each(|data| result.push(*data));
         result
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream, root: String) {
     let mut reader = BufReader::new(&mut stream);
     let mut buffer = String::new();
     reader.read_line(&mut buffer).unwrap();
@@ -72,7 +75,12 @@ fn handle_connection(mut stream: TcpStream) {
         .split_whitespace()
         .nth(1)
         .expect("Failed to get the Requested file name from client")[1..];
-    let path = std::path::Path::new(if path.is_empty() { "index.html" } else { path });
+    let file_path = format!(
+        "{root}/{}",
+        if path.is_empty() { "index.html" } else { path }
+    );
+    println!("{file_path}");
+    let path = std::path::Path::new(&file_path);
     let extension = &path
         .extension()
         .map(|x| x.to_str().unwrap())
@@ -113,6 +121,7 @@ fn main() {
     let listener = TcpListener::bind(socket_address).unwrap();
     for stream in listener.incoming() {
         println!("Incoming connection from: {stream:?}");
-        std::thread::spawn(move || handle_connection(stream.unwrap()));
+        let root = args.server_path.clone();
+        std::thread::spawn(move || handle_connection(stream.unwrap(), root));
     }
 }
